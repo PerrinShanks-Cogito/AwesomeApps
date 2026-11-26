@@ -148,7 +148,7 @@ label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
       <details id="endBox">
         <summary>End of shift: send or copy data</summary>
         <div class="send">
-          <a id="sendBtn" class="sendbtn" href="#" target="_blank" rel="noopener">Copy data &amp; open form</a>
+          <a id="sendBtn" class="sendbtn" href="https://forms.cloud.microsoft/e/FKWxPKSfhH" target="_blank" rel="noopener">Copy data &amp; open form</a>
           <p class="note" id="sendInfo"></p>
           <p class="note" id="sendHow">Sign in to the Form with your NHS account, paste into the answer box (long-press &gt; Paste, or Ctrl+V), then Submit.</p>
         </div>
@@ -167,7 +167,6 @@ label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
         <summary>Settings</summary>
         <label for="ward">Ward</label><input id="ward" autocomplete="off">
         <label for="mgr">Your initials</label><input id="mgr" autocomplete="off">
-        <label for="form">Microsoft Form link (optional)</label><input id="form" type="url" placeholder="https://forms.office.com/…">
         <p class="note">Saved on this device only. Your log also stays on this device until you copy or submit it.</p>
       </details>
     </section>
@@ -211,7 +210,8 @@ const CH=['Telephone','Bleep','Teams','In person'];
 const KEY='wmtl-v1';
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let S={set:{ward:'',mgr:'',form:''},cur:null,live:null,log:[]};
+const FORM_URL='https://forms.cloud.microsoft/e/FKWxPKSfhH';
+let S={set:{ward:'',mgr:''},cur:null,live:null,log:[]};
 try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.isArray(d.log))S=Object.assign(S,d)}catch(e){}
 const uid=()=>{try{if(crypto.randomUUID)return crypto.randomUUID()}catch(e){}return 'x'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)+'-'+Math.random().toString(36).slice(2,10)};
 if(!S.shiftId)S.shiftId=uid();
@@ -424,18 +424,15 @@ let partIdx=0;
 function renderSend(){
   const P=sendParts(),n=S.log.length+(S.cur?1:0),btn=$('sendBtn'),info=$('sendInfo');
   if(partIdx>=P.length)partIdx=0;
-  const hasForm=/^https:\/\//.test(S.set.form||'');
-  btn.href=hasForm?S.set.form:'#';
-  btn.textContent=(P.length>1?'Copy part '+(partIdx+1)+' of '+P.length:'Copy data')+(hasForm?' & open form':'');
+  btn.href=FORM_URL;
+  btn.textContent=(P.length>1?'Copy part '+(partIdx+1)+' of '+P.length:'Copy data')+' & open form';
   info.className='note';
-  if(!hasForm){info.textContent='Add your Microsoft Form link in Settings to open it from here.';info.className='note warn'}
-  else if(P.length>1)info.textContent=n+' entries \u2013 too long for one answer, so they go in '+P.length+' parts. Submit the Form once per part.';
+  if(P.length>1)info.textContent=n+' entries \u2013 too long for one answer, so they go in '+P.length+' parts. Submit the Form once per part.';
   else info.textContent=n+' entries \u00b7 '+P[0].length.toLocaleString('en-GB')+' of 4,000 characters';
 }
 $('sendBtn').addEventListener('click',ev=>{
   const P=sendParts();if(partIdx>=P.length)partIdx=0;
-  const txt=P[partIdx],hasForm=/^https:\/\//.test(S.set.form||'');
-  if(!hasForm)ev.preventDefault();
+  const txt=P[partIdx];
   try{navigator.clipboard.writeText(txt).then(()=>{say(P.length>1?'Part '+(partIdx+1)+' copied \u2013 paste it into the Form and submit.':'Copied \u2013 paste it into the Form and submit.');if(P.length>1){partIdx=(partIdx+1)%P.length;renderSend()}}).catch(()=>say('Copy was blocked. Use Copy full CSV, or try another browser.'))}
   catch(e){say('Copy was blocked. Use Copy full CSV, or try another browser.')}
 });
@@ -472,7 +469,7 @@ $('noClear').onclick=()=>$('confirm').classList.remove('show');
 $('yesClear').onclick=()=>{S.log=[];S.cur=null;S.live=null;S.shiftId=uid();partIdx=0;$('confirm').classList.remove('show');render();say('Log cleared. Ready for a new shift.')};
 
 /* Settings */
-['ward','mgr','form'].forEach(k=>{const el=$(k);el.value=S.set[k]||'';el.addEventListener('input',()=>{S.set[k]=el.value.trim();renderNow();save()})});
+['ward','mgr'].forEach(k=>{const el=$(k);el.value=S.set[k]||'';el.addEventListener('input',()=>{S.set[k]=el.value.trim();renderNow();save()})});
 
 render();
 setInterval(()=>{renderNow();if(S.cur)renderStats()},1000);
