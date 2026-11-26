@@ -36,7 +36,13 @@ h2{font-size:20px;margin:0 0 10px;font-weight:700}
 .now .lab{font-size:14px;opacity:.85}
 .now .what{font-size:24px;font-weight:700;line-height:1.15}
 .now .clock{font-size:clamp(30px,7vw,44px);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;grid-row:span 2}
-.now.idle{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.now.idle{background:var(--panel);color:var(--ink);border:2px dashed var(--blue);position:relative;cursor:pointer}
+.now.idle:hover{background:light-dark(#e8f1fa,#1d3346)}
+.now.idle .what,.now:not(.idle) .pick{display:none}
+.pick{display:block;background:none;padding:0;margin:0;min-height:0;border-radius:0;text-align:left;font-size:24px;font-weight:700;line-height:1.15;color:light-dark(#005eb8,#8cc4ff);text-decoration:underline;text-underline-offset:5px}
+.pick::after{content:"";position:absolute;inset:0;border-radius:16px}
+.pick:focus-visible{outline:0;box-shadow:none}
+.now.idle:has(.pick:focus-visible){outline:4px solid var(--focus);outline-offset:0;box-shadow:0 0 0 7px #212b32}
 .now .stop{grid-column:1/-1;background:rgba(255,255,255,.18);color:#fff;margin-top:8px}
 .now.idle .stop{display:none}
 .int{width:100%;margin:14px 0 20px;background:var(--red);color:var(--redink);font-size:24px;font-weight:800;min-height:76px;border-radius:18px;box-shadow:0 4px 0 #6b140e}
@@ -130,14 +136,12 @@ label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
   <div class="grid">
     <section>
       <div class="now idle" id="now">
-        <div><div class="lab" id="nowLab">Not timing anything</div><div class="what" id="nowWhat">Choose an activity below</div></div>
+        <div><div class="lab" id="nowLab">Not timing anything</div><div class="what" id="nowWhat"></div><button class="pick" id="pickBtn" aria-haspopup="dialog">Click here to choose an activity</button></div>
         <div class="clock" id="nowClock">0:00</div>
-        <div class="nowbtns"><button id="adjBtn">Edit</button><button id="stopBtn">Stop activity</button></div>
+        <div class="nowbtns"><button id="switchBtn" aria-haspopup="dialog">Switch activity</button><button id="adjBtn">Edit</button><button id="stopBtn">Stop activity</button></div>
       </div>
       <div class="live" id="live" hidden><span>Interruption: <span id="liveWhat"></span></span><b id="liveClock">0:00</b><button id="liveDone">Finished</button></div>
       <button class="int" id="intBtn">Interrupted</button>
-      <h2>Activities</h2>
-      <div class="groups" id="groups"></div>
     </section>
     <section>
       <h2>This shift</h2>
@@ -171,6 +175,14 @@ label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
         <p class="note">Saved on this device only. Your log also stays on this device until you copy or submit it.</p>
       </details>
     </section>
+  </div>
+</div>
+
+<div class="sheet" id="actSheet" role="dialog" aria-modal="true" aria-labelledby="actTitle">
+  <div class="card">
+    <div class="hd"><h2 id="actTitle">Choose an activity</h2><button class="ghost" id="actClose">Close</button></div>
+    <p class="step">Tap a group, then tap what you're doing. The timer starts straight away.</p>
+    <div class="groups" id="groups"></div>
   </div>
 </div>
 
@@ -239,7 +251,13 @@ function closeCur(){
 const OTHER='Other not listed';
 let askOther=false;
 const othNote=v=>{v=v.trim();return v.toLowerCase()===OTHER.toLowerCase()?'':v};
+/* Activity picker pop-up */
+let actFrom=null;
+const actOpen=()=>$('actSheet').classList.contains('show');
+function openAct(from){actFrom=from||null;askOther=false;openG=S.cur?ACT.findIndex(a=>a.g===S.cur.g):-1;renderGroups();$('actSheet').classList.add('show');const b=$('groups').querySelector(openG>=0?'.grp.open .items button':'button');if(b)b.focus()}
+function closeAct(){if(!actOpen())return;$('actSheet').classList.remove('show');askOther=false;const f=S.cur?$('switchBtn'):$('pickBtn');if(f&&f.offsetParent)f.focus()}
 function startAct(g,i,note=''){
+  closeAct();
   if(S.cur&&S.cur.g===g&&S.cur.i===i&&(S.cur.note||'')===note)return;
   closeCur();S.cur={id:uid(),g,i,start:Date.now(),note};askOther=false;save();render();
 }
@@ -274,7 +292,7 @@ function renderLog(){
 function renderNow(){
   const n=$('now');
   if(S.cur){n.classList.remove('idle');$('nowLab').textContent='Now doing · '+S.cur.g;$('nowWhat').textContent=S.cur.i+(S.cur.note?' – '+S.cur.note:'');$('nowClock').textContent=clock(Date.now()-S.cur.start)}
-  else{n.classList.add('idle');$('nowLab').textContent='Not timing anything';$('nowWhat').textContent='Choose an activity below';$('nowClock').textContent='0:00'}
+  else{n.classList.add('idle');$('nowLab').textContent='Not timing anything';$('nowClock').textContent='0:00'}
   if(S.live){$('live').hidden=false;$('liveWhat').textContent=S.live.i;$('liveClock').textContent=clock(Date.now()-S.live.start);$('intBtn').hidden=true}
   else{$('live').hidden=true;$('intBtn').hidden=false}
   const w=[S.set.ward,S.set.mgr].filter(Boolean).join(' · ');
@@ -323,7 +341,11 @@ $('stepBody').addEventListener('keydown',ev=>{if(ev.target.id==='oth'&&ev.key===
 $('back').onclick=()=>{if(ip&&ip.step>1){ip.step--;drawStep()}};
 $('cancel').onclick=closeSheet;
 $('sheet').addEventListener('click',ev=>{if(ev.target===$('sheet'))closeSheet()});
-document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(ip)closeSheet();if(ed)closeEdit()});
+document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(ip)closeSheet();if(ed)closeEdit();closeAct()});
+$('pickBtn').onclick=()=>openAct();
+$('switchBtn').onclick=()=>openAct();
+$('actClose').onclick=closeAct;
+$('actSheet').addEventListener('click',ev=>{if(ev.target===$('actSheet'))closeAct()});
 
 /* Edit panel: k = log index, 'cur' (running activity) or 'new' (missed entry) */
 let ed=null;
