@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ward Manager Time Log</title>
+<style>
+/* VOICE: calm, clinical, quick — a tool used one-handed on a busy ward
+   IDEA: a ward handover clipboard with a big red call button
+   PICTURE: the live "now doing" card and the Interrupted button are the picture
+   COLOUR and TYPE: NHS identity palette (NHS Blue #005EB8, NHS.UK greys, green for actions, red for warnings); Frutiger/Arial
+   LAYOUT: one column on phone; two columns (controls | log & summary) on wide screens */
+:root{color-scheme:light dark;
+--bg:light-dark(#f0f4f5,#0f1a22);--panel:light-dark(#ffffff,#18252f);--line:light-dark(#d8dde0,#33444f);
+--ink:light-dark(#212b32,#e8edee);--mute:light-dark(#4c6272,#aeb7bd);--blue:#005eb8;--dblue:#003087;
+--red:#d5281b;--redink:#fff;--green:#007f3b;--ok:light-dark(#007f3b,#78be20);--focus:#ffeb3b}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Frutiger W01","Frutiger",Arial,sans-serif;overflow-x:clip}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:12px;min-height:48px;padding:10px 14px;background:var(--panel);font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:4px solid var(--focus);outline-offset:0;box-shadow:0 0 0 7px #212b32}
+input{font-size:16px;min-height:46px;width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:4px;background:var(--panel);border-color:light-dark(#4c6272,#768692)}
+h1{font-size:clamp(26px,5vw,36px);line-height:1.05;margin:0;font-weight:800;text-wrap:balance}
+h2{font-size:20px;margin:0 0 10px;font-weight:700}
+.wrap{max-width:1180px;margin:0 auto;padding:clamp(16px,3vw,32px) max(4vw,14px) 40px}
+.nhsbar{background:var(--blue);color:#fff}
+.top{max-width:1180px;margin:0 auto;padding:16px max(4vw,14px);display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:space-between}
+.top p{margin:0;color:#fff;opacity:.92}
+.top .home{flex-basis:100%;color:#fff;font-weight:600;text-underline-offset:3px;opacity:.92}
+.grid{display:grid;gap:24px;grid-template-columns:minmax(0,1fr)}
+@media(min-width:900px){.grid{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}}
+.now{background:var(--blue);color:#fff;border-radius:18px;padding:18px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center}
+.now .lab{font-size:14px;opacity:.85}
+.now .what{font-size:24px;font-weight:700;line-height:1.15}
+.now .clock{font-size:clamp(30px,7vw,44px);font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;grid-row:span 2}
+.now.idle{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.now .stop{grid-column:1/-1;background:rgba(255,255,255,.18);color:#fff;margin-top:8px}
+.now.idle .stop{display:none}
+.int{width:100%;margin:14px 0 20px;background:var(--red);color:var(--redink);font-size:24px;font-weight:800;min-height:76px;border-radius:18px;box-shadow:0 4px 0 #6b140e}
+.int:active{transform:translateY(2px);box-shadow:0 2px 0 #6b140e}
+.live{background:var(--red);color:#fff;border-radius:14px;padding:12px 16px;margin:14px 0 0;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between}
+.live b{font-variant-numeric:tabular-nums;font-size:22px}
+.live button{background:#fff;color:var(--red)}
+.groups{display:grid;gap:10px}
+.grp{border-radius:14px;border:1px solid var(--line);overflow:hidden;background:var(--panel)}
+.grp>button{width:100%;text-align:left;background:transparent;border-radius:0;display:flex;gap:12px;align-items:center;font-size:18px;min-height:58px}
+.dot{flex:none;width:14px;height:14px;border-radius:50%;background:var(--c)}
+.grp>button .n{margin-left:auto;color:var(--mute);font-weight:400;font-size:15px}
+.items{display:none;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;padding:0 12px 12px}
+.grp.open .items{display:grid}
+.items button{background:var(--bg);text-align:left;border-left:5px solid var(--c);font-weight:600;line-height:1.2}
+.items button.on{background:var(--c);color:#fff}
+.sheet{position:fixed;inset:0;background:rgba(5,15,25,.55);display:none;align-items:flex-end;justify-content:center;z-index:9}
+.sheet.show{display:flex}
+.card{background:var(--bg);width:min(640px,100%);max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:20px 18px 24px}
+@media(min-width:700px){.sheet{align-items:center}.card{border-radius:20px}}
+.card .hd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px}
+.card .hd h2{margin:0}
+.step{color:var(--mute);font-size:14px;margin:0 0 12px}
+.opts{display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.opts button{text-align:left;border-left:5px solid var(--c,var(--blue));line-height:1.2}
+.mins{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mins button{font-size:20px;font-weight:800;min-height:60px}
+.mins .wide{grid-column:1/-1;background:var(--red);color:#fff;font-size:18px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.row>*{flex:1 1 auto}
+.ghost{background:transparent;border:1px solid var(--line)}
+.primary{background:var(--green);color:#fff;box-shadow:0 4px 0 #00401e}
+.primary:active{transform:translateY(2px);box-shadow:0 2px 0 #00401e}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.stat{background:var(--panel);border-radius:14px;padding:12px}
+.stat b{display:block;font-size:clamp(22px,5vw,30px);line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat span{font-size:14px;color:var(--mute)}
+.stat.hot b{color:var(--red)}
+.bars{display:grid;gap:8px;margin-bottom:20px}
+.bar{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) 4.5em;gap:8px;align-items:center;font-size:15px}
+.bar i{display:block;height:14px;border-radius:7px;background:var(--c);min-width:2px}
+.bar em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--mute)}
+.log{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.log li{display:grid;grid-template-columns:4.2em minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.log time{font-variant-numeric:tabular-nums;color:var(--mute);white-space:nowrap}
+.log .t{line-height:1.25}.log .t small{display:block;color:var(--mute);font-size:13px}
+.log .m{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.log .i .t{color:var(--red)}
+.log .x{min-height:44px;width:44px;padding:0;background:transparent;color:var(--mute);font-size:20px}
+.empty{color:var(--mute);padding:14px 0}
+.log .e{background:transparent;text-align:left;padding:4px 6px;margin-left:-6px;min-height:44px;border-radius:8px;font-weight:400}
+.log .e:hover{background:var(--panel)}
+.log .e small{display:block;color:var(--mute);font-size:13px}
+.ed{font-size:12px;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:0 5px;margin-left:4px;white-space:nowrap}
+.loghd{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.loghd h2{margin:0}
+select{font-size:16px;min-height:46px;width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:inherit}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:4px}
+.seg .on{background:var(--blue);color:#fff}
+.nowbtns{grid-column:1/-1;display:flex;gap:8px;margin-top:8px}
+.nowbtns button{flex:1;background:rgba(255,255,255,.18);color:#fff}
+.now.idle .nowbtns{display:none}
+.othbox{grid-column:1/-1;background:var(--panel);border-radius:12px;padding:4px 12px 12px;border-left:5px solid var(--c)}
+.items .othbox button{border-left:0;text-align:center}
+.items .othbox .startbtn{flex:1 1 60%;font-size:18px;min-height:56px;background:var(--c);color:#fff;border:2px solid var(--c)}
+.items .othbox .ghost{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.send{background:var(--panel);border-radius:14px;padding:14px;margin:6px 0 10px}
+.sendbtn{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:12px;background:var(--green);box-shadow:0 4px 0 #00401e;color:#fff;font-weight:700;font-size:18px;text-decoration:none;text-align:center;padding:10px 14px}
+.sendbtn:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.send .note{margin:8px 0 0}
+.send .warn{color:var(--red);font-weight:600}
+.err{color:var(--red);font-weight:600;min-height:1.5em;margin:10px 0 0}
+details{border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-top:20px}
+summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+.note{font-size:14px;color:var(--mute);margin:8px 0 0}
+.msg{color:var(--ok);font-weight:600;min-height:1.5em;margin:8px 0 0}
+.confirm{display:none;background:var(--panel);border-radius:12px;padding:12px;margin-top:10px}
+.confirm.show{display:block}
+@media (prefers-reduced-motion:no-preference){.now:not(.idle) .clock{animation:pulse 2s ease-in-out infinite}@keyframes pulse{50%{opacity:.75}}}
+</style>
+</head>
+<body>
+<header class="nhsbar"><div class="top">
+    <a class="home" href="../">&larr; All apps</a>
+    <h1>Ward manager time log</h1>
+    <p id="shiftInfo">Tap what you're doing. Tap red when interrupted.</p>
+  </div></header>
+<div class="wrap">
+  <div class="grid">
+    <section>
+      <div class="now idle" id="now">
+        <div><div class="lab" id="nowLab">Not timing anything</div><div class="what" id="nowWhat">Choose an activity below</div></div>
+        <div class="clock" id="nowClock">0:00</div>
+        <div class="nowbtns"><button id="adjBtn">Edit</button><button id="stopBtn">Stop activity</button></div>
+      </div>
+      <div class="live" id="live" hidden><span>Interruption: <span id="liveWhat"></span></span><b id="liveClock">0:00</b><button id="liveDone">Finished</button></div>
+      <button class="int" id="intBtn">Interrupted</button>
+      <h2>Activities</h2>
+      <div class="groups" id="groups"></div>
+    </section>
+    <section>
+      <h2>This shift</h2>
+      <div class="stats" id="stats"></div>
+      <div class="bars" id="bars"></div>
+      <div class="loghd"><h2>Log</h2><button class="ghost" id="addBtn">+ Add missed entry</button></div>
+      <p class="note" style="margin:0 0 8px">Tap an entry to change it.</p>
+      <ul class="log" id="log"></ul>
+      <details id="endBox">
+        <summary>End of shift: send or copy data</summary>
+        <div class="send">
+          <a id="sendBtn" class="sendbtn" href="#" target="_blank" rel="noopener">Copy data &amp; open form</a>
+          <p class="note" id="sendInfo"></p>
+          <p class="note" id="sendHow">Sign in to the Form with your NHS account, paste into the answer box (long-press &gt; Paste, or Ctrl+V), then Submit.</p>
+        </div>
+        <p class="note">For Excel or your own records:</p>
+        <div class="row">
+          <button class="ghost" id="copyBtn">Copy full CSV</button>
+          <button class="ghost" id="dlBtn">Download CSV</button>
+        </div>
+        <p class="msg" id="msg" aria-live="polite"></p>
+        <div class="row"><button class="ghost" id="clearBtn">Start a new shift (clear log)</button></div>
+        <div class="confirm" id="confirm">This removes every entry on this device. Copy your data first.
+          <div class="row"><button class="ghost" id="noClear">Keep log</button><button style="background:var(--red);color:#fff" id="yesClear">Clear log</button></div>
+        </div>
+      </details>
+      <details>
+        <summary>Settings</summary>
+        <label for="ward">Ward</label><input id="ward" autocomplete="off">
+        <label for="mgr">Your initials</label><input id="mgr" autocomplete="off">
+        <label for="form">Microsoft Form link (optional)</label><input id="form" type="url" placeholder="https://forms.office.com/…">
+        <p class="note">Saved on this device only. Your log also stays on this device until you copy or submit it.</p>
+      </details>
+    </section>
+  </div>
+</div>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="card">
+    <div class="hd"><h2 id="sheetTitle">Interruption</h2><button class="ghost" id="cancel">Cancel</button></div>
+    <p class="step" id="stepTxt"></p>
+    <div id="stepBody"></div>
+    <div class="row" id="backRow"><button class="ghost" id="back">Back</button></div>
+  </div>
+</div>
+
+<div class="sheet" id="edSheet" role="dialog" aria-modal="true" aria-labelledby="edTitle">
+  <div class="card">
+    <div class="hd"><h2 id="edTitle">Edit entry</h2><button class="ghost" id="edCancel">Cancel</button></div>
+    <div id="edBody"></div>
+    <p class="note" id="edId" style="overflow-wrap:anywhere"></p>
+    <p class="err" id="edErr" aria-live="polite"></p>
+    <div class="row"><button class="ghost" id="edDel">Delete</button><button class="primary" id="edSave">Save changes</button></div>
+  </div>
+</div>
+
+<script>
+{
+const ACT=[
+ {g:'Staffing and people',c:'#005eb8',i:['Roster management','Recruitment','HR management','Performance management']},
+ {g:'Learning and development',c:'#006747',i:['Team development','Staff 1:1','Teaching','Personal development','PDR – others','PDR – own']},
+ {g:'Safety and quality',c:'#7c2855',i:['Complaint management','Incident investigation / RADAR']},
+ {g:'Meetings',c:'#330072',i:['Teams meeting – directorate','Teams meeting – clinical group','Teams meeting – trust']},
+ {g:'Other + out of hours admin',c:'#425563',i:['Email management','Finance management','Presentation prep','Out of hours admin','Other not listed']}];
+const INT=[
+ {g:'Staff support and advice',c:'#005eb8',i:['Staff request – wellbeing','Staff request – dispute','Staff request – advice','Staff request – roster','Extra pair of hands']},
+ {g:'Clinical care and coordination',c:'#d5281b',i:['Clinical emergency','Clinical pathway management (e.g. discharge)','Ward round – medical or AHP','SNP request']},
+ {g:'Patient / relative / visitor',c:'#7c2855',i:['Patient/relative complaint or discussion','Professional visitor (e.g. HoN, DoN)']},
+ {g:'Workplace logistics',c:'#425563',i:['IT issues','Estates issues','Asked to move office']},
+ {g:'Other',c:'#330072',i:['Other – please state']}];
+const CH=['Telephone','Bleep','Teams','In person'];
+const KEY='wmtl-v1';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let S={set:{ward:'',mgr:'',form:''},cur:null,live:null,log:[]};
+try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.isArray(d.log))S=Object.assign(S,d)}catch(e){}
+const uid=()=>{try{if(crypto.randomUUID)return crypto.randomUUID()}catch(e){}return 'x'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)+'-'+Math.random().toString(36).slice(2,10)};
+if(!S.shiftId)S.shiftId=uid();
+S.log.forEach(e=>{if(!e.id)e.id=uid()});
+if(S.cur&&!S.cur.id)S.cur.id=uid();
+if(S.live&&!S.live.id)S.live.id=uid();
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const hm=t=>new Date(t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+const clock=ms=>{const s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(x).padStart(2,'0')};
+const upMin=ms=>Math.max(1,Math.ceil(ms/60000));
+const fm=v=>{const m=Math.ceil(v);return m>=60?Math.floor(m/60)+'h '+(m%60)+'m':m+'m'};
+const colorOf=(type,g)=>((type==='A'?ACT:INT).find(x=>x.g===g)||{}).c||'#425563';
+let openG=-1;
+
+function closeCur(){
+  if(!S.cur)return;const end=Date.now();
+  S.log.push({id:S.cur.id||uid(),type:'A',g:S.cur.g,i:S.cur.i,ch:'',start:S.cur.start,end,min:upMin(end-S.cur.start),note:S.cur.note||'',edited:!!S.cur.edited});
+  S.cur=null;
+}
+const OTHER='Other not listed';
+let askOther=false;
+const othNote=v=>{v=v.trim();return v.toLowerCase()===OTHER.toLowerCase()?'':v};
+function startAct(g,i,note=''){
+  if(S.cur&&S.cur.g===g&&S.cur.i===i&&(S.cur.note||'')===note)return;
+  closeCur();S.cur={id:uid(),g,i,start:Date.now(),note};askOther=false;save();render();
+}
+function renderGroups(){
+  $('groups').innerHTML=ACT.map((a,gi)=>`<div class="grp${gi===openG?' open':''}" style="--c:${a.c}">
+    <button data-g="${gi}" aria-expanded="${gi===openG}"><span class="dot"></span>${esc(a.g)}<span class="n">${a.i.length}</span></button>
+    <div class="items">${a.i.map((it,ii)=>`<button data-g="${gi}" data-i="${ii}" class="${S.cur&&S.cur.g===a.g&&S.cur.i===it?'on':''}">${esc(it)}</button>`).join('')}${
+      askOther&&gi===openG?`<div class="othbox"><label for="othAct">What are you doing?</label><input id="othAct" maxlength="120" value="${OTHER}" placeholder="e.g. Bed audit, estates walkround"><p class="note" style="margin:4px 0 0">Type over it to describe the activity, or just start the timer.</p><div class="row"><button class="ghost" data-oth="cancel" style="flex:0 1 auto">Cancel</button><button class="primary startbtn" data-oth="go">Start timer</button></div></div>`:''}</div></div>`).join('');
+}
+function renderStats(){
+  const now=Date.now();
+  const acts=S.log.filter(e=>e.type==='A').map(e=>({...e}));
+  if(S.cur)acts.push({type:'A',g:S.cur.g,min:upMin(now-S.cur.start)});
+  const ints=S.log.filter(e=>e.type==='I');
+  const tA=acts.reduce((s,e)=>s+e.min,0),tI=ints.reduce((s,e)=>s+e.min,0);
+  const pct=tA>0?Math.min(100,Math.round(tI/tA*100)):0;
+  $('stats').innerHTML=`<div class="stat"><b>${fm(tA)}</b><span>Activity time</span></div>
+   <div class="stat hot"><b>${ints.length}</b><span>Interruptions</span></div>
+   <div class="stat hot"><b>${pct}%</b><span>Time lost (${fm(tI)})</span></div>`;
+  const by=(arr,list)=>list.map(x=>({g:x.g,c:x.c,v:arr.filter(e=>e.g===x.g).reduce((s,e)=>s+e.min,0)})).filter(x=>x.v>0);
+  const a=by(acts,ACT),b=by(ints,INT),max=Math.max(1,...a.map(x=>x.v),...b.map(x=>x.v));
+  const rows=(arr,head)=>arr.length?`<div style="font-weight:700;font-size:15px">${head}</div>`+arr.map(x=>`<div class="bar" style="--c:${x.c}"><span>${esc(x.g)}</span><i style="width:${x.v/max*100}%"></i><em>${fm(x.v)}</em></div>`).join(''):'';
+  $('bars').innerHTML=rows(a,'Time by activity group')+rows(b,'Time lost by interruption group');
+}
+function renderLog(){
+  if(!S.log.length){$('log').innerHTML='<li class="empty" style="display:block">Nothing logged yet this shift.</li>';return}
+  $('log').innerHTML=S.log.map((e,k)=>({e,k})).reverse().map(({e,k})=>`<li class="${e.type==='I'?'i':''}">
+    <time>${hm(e.start)}</time>
+    <button class="t e" data-edit="${k}" aria-label="Edit ${esc(e.i)} at ${hm(e.start)}">${e.type==='I'?'⚠ ':''}${esc(e.i)}${e.edited?'<span class="ed">edited</span>':''}<small>${esc(e.g)}${e.ch?' · '+esc(e.ch):''}${e.note?' · '+esc(e.note):''}</small></button>
+    <span class="m">${fm(e.min)}</span><button class="x" data-del="${k}" aria-label="Delete entry">×</button></li>`).join('');
+}
+function renderNow(){
+  const n=$('now');
+  if(S.cur){n.classList.remove('idle');$('nowLab').textContent='Now doing · '+S.cur.g;$('nowWhat').textContent=S.cur.i+(S.cur.note?' – '+S.cur.note:'');$('nowClock').textContent=clock(Date.now()-S.cur.start)}
+  else{n.classList.add('idle');$('nowLab').textContent='Not timing anything';$('nowWhat').textContent='Choose an activity below';$('nowClock').textContent='0:00'}
+  if(S.live){$('live').hidden=false;$('liveWhat').textContent=S.live.i;$('liveClock').textContent=clock(Date.now()-S.live.start);$('intBtn').hidden=true}
+  else{$('live').hidden=true;$('intBtn').hidden=false}
+  const w=[S.set.ward,S.set.mgr].filter(Boolean).join(' · ');
+  $('shiftInfo').textContent=(w?w+' · ':'')+new Date().toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+  renderSend();
+}
+function render(){renderGroups();renderStats();renderLog();renderNow();save()}
+
+/* Interruption sheet */
+let ip=null;
+function openSheet(){ip={step:1,t:Date.now()};$('sheet').classList.add('show');drawStep()}
+function closeSheet(){ip=null;$('sheet').classList.remove('show')}
+function drawStep(){
+  const b=$('stepBody');$('backRow').style.display=ip.step>1?'flex':'none';
+  if(ip.step===1){$('stepTxt').textContent='Step 1 of 4 · Started '+hm(ip.t)+' · What kind?';
+    b.innerHTML='<div class="opts">'+INT.map((x,k)=>`<button style="--c:${x.c}" data-s="g" data-v="${k}">${esc(x.g)}</button>`).join('')+'</div>'}
+  else if(ip.step===2){const G=INT[ip.g];$('stepTxt').textContent='Step 2 of 4 · '+G.g;
+    if(G.g==='Other'){
+      b.innerHTML=`<label for="oth">What was the interruption?</label><input id="oth" maxlength="120" value="${esc(G.i[0])}"><p class="note" style="margin:4px 0 0">Type over it to describe it, or just carry on.</p><div class="row"><button class="primary" data-s="othnext" style="font-size:18px;min-height:56px">Next</button></div>`;
+      const f=$('oth');if(f){f.focus();f.select()}
+    } else b.innerHTML='<div class="opts">'+G.i.map((x,k)=>`<button style="--c:${G.c}" data-s="i" data-v="${k}">${esc(x)}</button>`).join('')+'</div>'}
+  else if(ip.step===3){$('stepTxt').textContent='Step 3 of 4 · How did it reach you?';
+    b.innerHTML='<div class="opts">'+CH.map(x=>`<button data-s="ch" data-v="${esc(x)}">${esc(x)}</button>`).join('')+'</div><div class="row"><button class="ghost" data-s="ch" data-v="">Skip</button></div>'}
+  else{$('stepTxt').textContent='Step 4 of 4 · Roughly how long?';
+    b.innerHTML='<div class="mins">'+[2,5,10,15,30,45].map(m=>`<button data-s="m" data-v="${m}">${m===45?'45+':m} min</button>`).join('')+
+    '<button class="wide" data-s="live">Still going – time it</button></div>'}
+}
+const intNote=v=>{v=String(v||'').trim();const d=INT[INT.length-1].i[0];return v.replace(/[\u2013\u2014]/g,'-').toLowerCase()===d.replace(/[\u2013\u2014]/g,'-').toLowerCase()?'':v};
+function intOther(){if(!ip)return;ip.i=0;ip.note=intNote(($('oth')||{}).value);ip.step=3;drawStep()}
+function finishInt(min){
+  const G=INT[ip.g];const e={id:uid(),type:'I',g:G.g,i:G.i[ip.i],ch:ip.ch||'',start:ip.t,note:ip.note||''};
+  if(min==null){S.live=e}else{e.min=min;e.end=ip.t+min*60000;S.log.push(e)}
+  closeSheet();render();
+}
+$('stepBody').addEventListener('click',ev=>{
+  const t=ev.target.closest('button[data-s]');if(!t||!ip)return;const s=t.dataset.s,v=t.dataset.v;
+  if(s==='g'){ip.g=+v;ip.step=2}
+  else if(s==='i'){ip.i=+v;ip.note='';ip.step=3}
+  else if(s==='othnext'){intOther();return}
+  else if(s==='ch'){ip.ch=v;ip.step=4}
+  else if(s==='m'){finishInt(+v);return}
+  else if(s==='live'){finishInt(null);return}
+  drawStep();
+});
+$('stepBody').addEventListener('keydown',ev=>{if(ev.target.id==='oth'&&ev.key==='Enter'){ev.preventDefault();intOther()}});
+$('back').onclick=()=>{if(ip&&ip.step>1){ip.step--;drawStep()}};
+$('cancel').onclick=closeSheet;
+$('sheet').addEventListener('click',ev=>{if(ev.target===$('sheet'))closeSheet()});
+document.addEventListener('keydown',ev=>{if(ev.key!=='Escape')return;if(ip)closeSheet();if(ed)closeEdit()});
+
+/* Edit panel: k = log index, 'cur' (running activity) or 'new' (missed entry) */
+let ed=null;
+const hhmm=t=>{const d=new Date(t);return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
+const opt=(arr,sel)=>arr.map(v=>`<option value="${esc(v)}"${v===sel?' selected':''}>${esc(v)}</option>`).join('');
+function openEdit(k){
+  if(k==='cur'){if(!S.cur)return;ed={k,type:'A',g:S.cur.g,i:S.cur.i,ch:'',start:S.cur.start,min:0,note:S.cur.note||''}}
+  else if(k==='new'){ed={k,type:'A',g:ACT[0].g,i:ACT[0].i[0],ch:'',start:Date.now()-15*60000,min:15,note:''}}
+  else{const e=S.log[k];if(!e)return;ed={k,type:e.type,g:e.g,i:e.i,ch:e.ch||'',start:e.start,min:e.min,note:e.note||''}}
+  $('edTitle').textContent=k==='cur'?'Edit current activity':k==='new'?'Add missed entry':'Edit entry';
+  $('edDel').style.display=k==='new'?'none':'';
+  $('edDel').textContent=k==='cur'?'Discard activity':'Delete';
+  $('edSave').textContent=k==='new'?'Add to log':'Save changes';
+  $('edErr').textContent='';
+  $('edId').textContent=k==='new'?'A new session ID is created when you add this.':'Session ID: '+(k==='cur'?S.cur.id:S.log[k].id);
+  $('edSheet').classList.add('show');drawEdit();
+}
+function closeEdit(){ed=null;$('edSheet').classList.remove('show')}
+function drawEdit(){
+  const L=ed.type==='A'?ACT:INT;const G=L.find(x=>x.g===ed.g)||L[0];
+  ed.g=G.g;if(!G.i.includes(ed.i))ed.i=G.i[0];
+  $('edBody').innerHTML=(ed.k==='cur'?'':`<div class="seg" role="group" aria-label="Entry type"><button type="button" data-t="A" class="${ed.type==='A'?'on':''}">Activity</button><button type="button" data-t="I" class="${ed.type==='I'?'on':''}">Interruption</button></div>`)+
+   `<label for="eG">Group</label><select id="eG">${opt(L.map(x=>x.g),G.g)}</select>
+    <label for="eI">${ed.type==='A'?'Activity':'Interruption'}</label><select id="eI">${opt(G.i,ed.i)}</select>`+
+   (ed.type==='I'?`<label for="eC">Contact channel</label><select id="eC"><option value="">Not recorded</option>${opt(CH,ed.ch)}</select>`:'')+
+   `<div class="two"><div><label for="eS">Start time</label><input id="eS" type="time" value="${hhmm(ed.start)}"></div>`+
+   (ed.k==='cur'?`<div><label>Running for</label><input disabled value="${clock(Date.now()-ed.start)}"></div>`:`<div><label for="eM">Minutes</label><input id="eM" type="number" inputmode="numeric" min="1" max="1440" step="1" value="${Math.max(1,Math.ceil(ed.min))}"></div>`)+`</div>`+
+   (`<label for="eN">Note${ed.i==='Other – please state'||ed.i==='Other not listed'?' (please state)':''}</label><input id="eN" maxlength="120" value="${esc(ed.note)}">`);
+}
+function readEdit(){
+  if(!ed)return;
+  ed.g=$('eG').value;ed.i=$('eI').value;
+  if($('eC'))ed.ch=$('eC').value;
+  if($('eN'))ed.note=$('eN').value.trim();
+  const v=$('eS').value;if(/^\d{2}:\d{2}$/.test(v)){const d=new Date(ed.start);d.setHours(+v.slice(0,2),+v.slice(3),0,0);ed.start=d.getTime()}
+  const m=$('eM');if(m&&m.value!==''){const n=+m.value;if(n!==Math.max(1,Math.ceil(ed.min)))ed.min=n}
+}
+$('edBody').addEventListener('click',ev=>{const t=ev.target.closest('[data-t]');if(!t||!ed)return;readEdit();if(ed.type!==t.dataset.t){ed.type=t.dataset.t;ed.g='';ed.i=''}drawEdit()});
+$('edBody').addEventListener('change',ev=>{if(ev.target.id==='eG'){readEdit();ed.i='';drawEdit()}});
+$('edCancel').onclick=closeEdit;
+$('edSheet').addEventListener('click',ev=>{if(ev.target===$('edSheet'))closeEdit()});
+$('edDel').onclick=()=>{if(!ed)return;if(ed.k==='cur')S.cur=null;else S.log.splice(ed.k,1);closeEdit();render()};
+$('edSave').onclick=()=>{
+  if(!ed)return;readEdit();const err=$('edErr');
+  if(ed.k==='cur'){
+    if(ed.start>Date.now()){err.textContent='Start time can’t be in the future.';return}
+    S.cur={id:S.cur.id||uid(),g:ed.g,i:ed.i,start:ed.start,note:ed.note,edited:true};closeEdit();render();return;
+  }
+  if(!(ed.min>0&&ed.min<=1440)){err.textContent='Enter minutes between 1 and 1440.';return}
+  ed.min=Math.ceil(ed.min);
+  const e={id:ed.k==='new'?uid():(S.log[ed.k].id||uid()),type:ed.type,g:ed.g,i:ed.i,ch:ed.type==='I'?ed.ch:'',start:ed.start,min:ed.min,end:ed.start+ed.min*60000,note:ed.note,edited:true};
+  if(ed.k==='new')S.log.push(e);else S.log[ed.k]=e;
+  S.log.sort((a,b)=>a.start-b.start);
+  closeEdit();render();
+};
+$('adjBtn').onclick=()=>openEdit('cur');
+$('addBtn').onclick=()=>openEdit('new');
+$('intBtn').onclick=openSheet;
+$('liveDone').onclick=()=>{if(!S.live)return;const end=Date.now();S.live.end=end;S.live.min=upMin(end-S.live.start);S.log.push(S.live);S.live=null;render()};
+
+$('groups').addEventListener('click',ev=>{
+  const t=ev.target.closest('button');if(!t)return;
+  if(t.dataset.oth){if(t.dataset.oth==='go'){const A=ACT.find(x=>x.i.includes(OTHER));startAct(A.g,OTHER,othNote($('othAct').value))}else{askOther=false;renderGroups()}return}
+  const g=+t.dataset.g;
+  if(t.dataset.i!==undefined){const A=ACT[g],it=A.i[+t.dataset.i];
+    if(it===OTHER){askOther=true;renderGroups();const f=$('othAct');if(f){f.focus();f.select()}return}
+    startAct(A.g,it)}
+  else{openG=openG===g?-1:g;askOther=false;renderGroups()}
+});
+$('groups').addEventListener('keydown',ev=>{if(ev.target.id==='othAct'&&ev.key==='Enter'){ev.preventDefault();const A=ACT.find(x=>x.i.includes(OTHER));startAct(A.g,OTHER,othNote(ev.target.value))}});
+$('stopBtn').onclick=()=>{closeCur();render()};
+$('log').addEventListener('click',ev=>{
+  const ed2=ev.target.closest('[data-edit]');if(ed2){openEdit(+ed2.dataset.edit);return}
+  const t=ev.target.closest('[data-del]');if(!t)return;S.log.splice(+t.dataset.del,1);render()});
+
+/* Compact format for Microsoft Forms (4,000 character limit per answer) */
+const LIMIT=3900, CHC={'Telephone':'T','Bleep':'B','Teams':'M','In person':'P'};
+const ymd=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const clean=v=>String(v??'').replace(/[|\r\n]+/g,' ').replace(/[\u2013\u2014]/g,'-').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').trim();
+const codeOf=(type,g,i)=>{const L=type==='A'?ACT:INT;const gi=L.findIndex(x=>x.g===g);const ii=gi<0?-1:L[gi].i.indexOf(i);return type+(gi+1)+'.'+(ii+1)};
+function compactRows(){
+  const all=[...S.log];if(S.cur)all.push({id:S.cur.id,type:'A',g:S.cur.g,i:S.cur.i,ch:'',start:S.cur.start,min:upMin(Date.now()-S.cur.start),note:S.cur.note||'',edited:S.cur.edited,running:true});
+  all.sort((a,b)=>a.start-b.start);
+  const base=all.length?all[0].start:Date.now();
+  const b0=new Date(ymd(base)+'T00:00:00').getTime();
+  return {date:ymd(base),rows:all.map(e=>{const off=Math.round((new Date(ymd(e.start)+'T00:00:00').getTime()-b0)/86400000);
+    return [String(e.id||'').replace(/-/g,'').slice(0,8),codeOf(e.type,e.g,e.i),hhmm(e.start)+(off?'+'+off:''),Math.ceil(e.min),CHC[e.ch]||'',(e.edited?'e':'')+(e.running?'r':''),clean(e.note)].join('|')})};
+}
+function sendParts(){
+  const {date,rows}=compactRows();
+  const head=n=>['WMTL1',clean(S.set.ward),clean(S.set.mgr),date,String(S.shiftId||'').replace(/-/g,'').slice(0,8),n].join('|');
+  const parts=[];let cur=[];
+  const len=a=>head('9/9').length+1+a.join('\n').length;
+  rows.forEach(r=>{if(cur.length&&len(cur.concat(r))>LIMIT){parts.push(cur);cur=[]}cur.push(r)});
+  parts.push(cur);
+  return parts.map((p,k)=>head((k+1)+'/'+parts.length)+(p.length?'\n'+p.join('\n'):''));
+}
+let partIdx=0;
+function renderSend(){
+  const P=sendParts(),n=S.log.length+(S.cur?1:0),btn=$('sendBtn'),info=$('sendInfo');
+  if(partIdx>=P.length)partIdx=0;
+  const hasForm=/^https:\/\//.test(S.set.form||'');
+  btn.href=hasForm?S.set.form:'#';
+  btn.textContent=(P.length>1?'Copy part '+(partIdx+1)+' of '+P.length:'Copy data')+(hasForm?' & open form':'');
+  info.className='note';
+  if(!hasForm){info.textContent='Add your Microsoft Form link in Settings to open it from here.';info.className='note warn'}
+  else if(P.length>1)info.textContent=n+' entries \u2013 too long for one answer, so they go in '+P.length+' parts. Submit the Form once per part.';
+  else info.textContent=n+' entries \u00b7 '+P[0].length.toLocaleString('en-GB')+' of 4,000 characters';
+}
+$('sendBtn').addEventListener('click',ev=>{
+  const P=sendParts();if(partIdx>=P.length)partIdx=0;
+  const txt=P[partIdx],hasForm=/^https:\/\//.test(S.set.form||'');
+  if(!hasForm)ev.preventDefault();
+  try{navigator.clipboard.writeText(txt).then(()=>{say(P.length>1?'Part '+(partIdx+1)+' copied \u2013 paste it into the Form and submit.':'Copied \u2013 paste it into the Form and submit.');if(P.length>1){partIdx=(partIdx+1)%P.length;renderSend()}}).catch(()=>say('Copy was blocked. Use Copy full CSV, or try another browser.'))}
+  catch(e){say('Copy was blocked. Use Copy full CSV, or try another browser.')}
+});
+
+/* Export */
+function csv(){
+  const q=v=>{v=String(v??'').replace(/[\u2013\u2014\u2212]/g,'-').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/\u2026/g,'...').replace(/\u00A0/g,' ');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const all=[...S.log];if(S.cur)all.push({id:S.cur.id,type:'A',g:S.cur.g,i:S.cur.i,ch:'',start:S.cur.start,end:Date.now(),min:upMin(Date.now()-S.cur.start),note:(S.cur.note?S.cur.note+' ':'')+'(still running)',edited:!!S.cur.edited});
+  const iso=t=>new Date(t).toISOString();
+  return [['session_id','shift_id','ward','manager','date','type','group','item','channel','start','end','minutes','note','edited'].join(',')]
+   .concat(all.map(e=>[e.id,S.shiftId,S.set.ward,S.set.mgr,new Date(e.start).toLocaleDateString('en-GB'),e.type==='I'?'Interruption':'Activity',e.g,e.i,e.ch,iso(e.start),iso(e.end||e.start),Math.ceil(e.min),e.note,e.edited?'yes':'no'].map(q).join(','))).join('\n');
+}
+const say=m=>{$('msg').textContent=m;setTimeout(()=>{if($('msg').textContent===m)$('msg').textContent=''},4000)};
+$('copyBtn').onclick=async()=>{try{await navigator.clipboard.writeText(csv());say('Copied – paste into Excel, SharePoint or your form.')}catch(e){say('Copy was blocked here. Try Download CSV instead.')}};
+let dl=null;
+try{if(window.claude&&typeof window.claude.use==='function')window.claude.use('downloads').then(n=>{dl=n}).catch(()=>{})}catch(e){}
+const fname=()=>'ward-time-log-'+(S.set.ward?S.set.ward.replace(/[^\w-]+/g,'-')+'-':'')+new Date().toISOString().slice(0,10)+'.csv';
+$('dlBtn').onclick=async()=>{
+  const data='\uFEFF'+csv();
+  if(dl){
+    try{await dl.save({filename:fname(),data});say('CSV saved.')}
+    catch(e){const c=e&&e.code;
+      if(c==='declined')say('Download cancelled.');
+      else if(c==='rate_limited')say('A download is already waiting \u2013 try again in a moment.');
+      else if(c==='host_unavailable')say('This app can\u2019t save files. Open the page in a browser, or use Copy CSV.');
+      else say('Download isn\u2019t available here. Use Copy CSV.')}
+    return;
+  }
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'text/csv'}));a.download=fname();document.body.appendChild(a);a.click();a.remove();say('Download started.')}
+  catch(e){say('Download is blocked here. Use Copy CSV.')}
+};
+$('clearBtn').onclick=()=>$('confirm').classList.add('show');
+$('noClear').onclick=()=>$('confirm').classList.remove('show');
+$('yesClear').onclick=()=>{S.log=[];S.cur=null;S.live=null;S.shiftId=uid();partIdx=0;$('confirm').classList.remove('show');render();say('Log cleared. Ready for a new shift.')};
+
+/* Settings */
+['ward','mgr','form'].forEach(k=>{const el=$(k);el.value=S.set[k]||'';el.addEventListener('input',()=>{S.set[k]=el.value.trim();renderNow();save()})});
+
+render();
+setInterval(()=>{renderNow();if(S.cur)renderStats()},1000);
+}
+</script>
+</body>
+</html>

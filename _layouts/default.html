@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% if page.title %}{{ page.title }} | {% endif %}{{ site.title }}</title>
+<meta name="description" content="{{ page.description | default: site.description }}">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23005EB8'/%3E%3Cpath d='M18 18h12v12H18zM34 18h12v12H34zM18 34h12v12H18zM34 34h12v12H34z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ '/assets/css/site.css' | relative_url }}">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+{% include header.html %}
+<main id="main">
+{{ content }}
+</main>
+<footer class="site-foot">
+  <div class="wrap">
+    <p>{{ site.title }} run entirely in your browser. Your data stays on your device.</p>
+    {%- if site.links.feedback != "" %}
+    <p><a href="{{ site.links.feedback }}" target="_blank" rel="noopener">Tell us what you think<span class="sr"> (opens in a new tab)</span></a></p>
+    {%- endif %}
+  </div>
+</footer>
+</body>
+</html>

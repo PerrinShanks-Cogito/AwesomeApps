@@ -1,0 +1,24 @@
+<header class="fh">
+  <div class="fh-top">
+    <div class="fh-inner">
+      <a class="fh-brand" href="{{ '/' | relative_url }}"><b>{{ site.title }}</b><span>{{ site.tagline }}</span></a>
+      {%- if site.links.feedback != "" %}
+      <nav class="fh-nav" aria-label="Main">
+        <a href="{{ site.links.feedback }}" target="_blank" rel="noopener">Feedback<span class="sr"> (opens in a new tab)</span></a>
+      </nav>
+      {%- endif %}
+    </div>
+  </div>
+  <div class="fh-sub">
+    <div class="fh-inner">
+      <details class="fh-dd"><summary>All apps</summary><div class="fh-menu">
+        <ul class="fh-list">
+          <li><a href="{{ '/' | relative_url }}" aria-current="page">All apps</a></li>
+          {%- for a in site.data.apps %}{% if a.hidden %}{% continue %}{% endif %}
+          <li><a href="{{ '/' | append: a.id | append: '/' | relative_url }}">{{ a.name }}</a>{% if a.status %}<span class="tag tag-{{ a.status | downcase }}">{{ a.status }}</span>{% endif %}</li>
+          {%- endfor %}
+        </ul>
+      </div></details>
+    </div>
+  </div>
+</header>

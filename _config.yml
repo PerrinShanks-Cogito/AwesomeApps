@@ -1,0 +1,21 @@
+title: Awesome Apps
+tagline: Ward tools
+description: Free, browser-based tools for busy wards. Everything runs on your device. Nothing is uploaded.
+baseurl: ""
+url: ""
+
+permalink: pretty
+markdown: kramdown
+
+# Links shared by every page header
+links:
+  feedback: ""
+
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
+  - netlify.toml
+  - vendor
+  - .github
+  - .ruby-version

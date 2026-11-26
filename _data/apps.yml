@@ -1,0 +1,7 @@
+# Every app on the landing page. Each app lives in a folder named after its id.
+# Fields: id, name, group, description, status (optional: Alpha, Beta), hidden (optional)
+- id: ward_logger
+  name: Ward manager time log
+  group: Time and workload
+  status: Beta
+  description: Tap what you're doing and tap red when interrupted. See where your shift went, then copy the data into a Microsoft Form or download a CSV.
