@@ -198,14 +198,14 @@ label{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
 const ACT=[
  {g:'Staffing and people',c:'#005eb8',i:['Roster management','Recruitment','HR management','Performance management']},
  {g:'Learning and development',c:'#006747',i:['Team development','Staff 1:1','Teaching','Personal development','PDR – others','PDR – own']},
- {g:'Safety and quality',c:'#7c2855',i:['Complaint management','Incident investigation / RADAR','QI / development project']},
- {g:'Meetings',c:'#330072',i:['Teams meeting – directorate','Teams meeting – clinical group','Teams meeting – trust','Team meeting – own department']},
+ {g:'Safety and quality',c:'#7c2855',i:['Complaint management','Incident investigation / RADAR management','QI / development project']},
+ {g:'Meetings',c:'#330072',i:['Team meeting – own department','Teams meeting – directorate','Teams meeting – clinical group','Teams meeting – trust']},
  {g:'Other + out of hours admin',c:'#425563',i:['Email management','Finance management','Presentation prep','Out of hours admin','Other not listed']}];
 const INT=[
- {g:'Staff support and advice',c:'#005eb8',i:['Staff request – wellbeing','Staff request – dispute','Staff request – advice','Staff request – roster','Clinical support – extra pair of hands']},
+ {g:'Staff support and advice',c:'#005eb8',i:['Staff request – wellbeing','Staff request – dispute (with other team member)','Staff request – advice','Staff request – roster','Clinical support – extra pair of hands']},
  {g:'Clinical care and coordination',c:'#d5281b',i:['Clinical emergency','Clinical pathway management (e.g. discharge)','Ward round – medical or AHP','SNP request']},
- {g:'Patient / relative / visitor',c:'#7c2855',i:['Patient/relative complaint or discussion','Professional visitor (e.g. HoN, DoN)']},
- {g:'Workplace logistics',c:'#425563',i:['IT issues','Estates issues','Asked to move office']},
+ {g:'Patient/relative or visitor related',c:'#7c2855',i:['Patient/relative complaint or discussion','Professional visitor (e.g. HoN, DoN)']},
+ {g:'Workplace logistics',c:'#425563',i:['IT issues','Estate related issues','Asked to move office']},
  {g:'Other',c:'#330072',i:['Other – please state']}];
 const CH=['Telephone','Bleep','Teams','In person'];
 const KEY='wmtl-v1';
@@ -216,8 +216,9 @@ try{const d=JSON.parse(localStorage.getItem(KEY));if(d&&Array.isArray(d.log))S=O
 const uid=()=>{try{if(crypto.randomUUID)return crypto.randomUUID()}catch(e){}return 'x'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10)+'-'+Math.random().toString(36).slice(2,10)};
 if(!S.shiftId)S.shiftId=uid();
 /* Renamed items: saved entries take the new name so they keep their code */
-const RENAMED={'Extra pair of hands':'Clinical support – extra pair of hands'};
-[...S.log,S.live].forEach(e=>{if(e&&RENAMED[e.i])e.i=RENAMED[e.i]});
+const RENAMED={'Extra pair of hands':'Clinical support – extra pair of hands','Incident investigation / RADAR':'Incident investigation / RADAR management','Staff request – dispute':'Staff request – dispute (with other team member)','Estates issues':'Estate related issues'};
+const RENAMED_G={'Patient / relative / visitor':'Patient/relative or visitor related'};
+[...S.log,S.live,S.cur].forEach(e=>{if(!e)return;if(RENAMED[e.i])e.i=RENAMED[e.i];if(RENAMED_G[e.g])e.g=RENAMED_G[e.g]});
 S.log.forEach(e=>{if(!e.id)e.id=uid()});
 if(S.cur&&!S.cur.id)S.cur.id=uid();
 if(S.live&&!S.live.id)S.live.id=uid();
