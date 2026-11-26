@@ -115,6 +115,7 @@ select{font-size:16px;min-height:46px;width:100%;padding:8px 12px;border:1px sol
 .sendbtn:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
 .send .note{margin:8px 0 0}
 .send .warn{color:var(--red);font-weight:600}
+.sendbtn.off{background:var(--mute);box-shadow:none;cursor:not-allowed}
 .err{color:var(--red);font-weight:600;min-height:1.5em;margin:10px 0 0}
 details{border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin-top:20px}
 summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
@@ -434,29 +435,29 @@ function compactRows(){
   return {date:ymd(base),rows:all.map(e=>{const off=Math.round((new Date(ymd(e.start)+'T00:00:00').getTime()-b0)/86400000);
     return [String(e.id||'').replace(/-/g,'').slice(0,8),codeOf(e.type,e.g,e.i),hhmm(e.start)+(off?'+'+off:''),Math.ceil(e.min),CHC[e.ch]||'',(e.edited?'e':'')+(e.running?'r':''),clean(e.note)].join('|')})};
 }
-function sendParts(){
+/* One Form answer holds the whole shift. The header ends with the number of
+   entries, so the flow can check it has every entry before it marks rows that
+   are missing from this send as IsDeleted. */
+function sendText(){
   const {date,rows}=compactRows();
-  const head=n=>['WMTL1',clean(S.set.ward),clean(S.set.mgr),date,String(S.shiftId||'').replace(/-/g,'').slice(0,8),n].join('|');
-  const parts=[];let cur=[];
-  const len=a=>head('9/9').length+1+a.join('\n').length;
-  rows.forEach(r=>{if(cur.length&&len(cur.concat(r))>LIMIT){parts.push(cur);cur=[]}cur.push(r)});
-  parts.push(cur);
-  return parts.map((p,k)=>head((k+1)+'/'+parts.length)+(p.length?'\n'+p.join('\n'):''));
+  return ['WMTL1',clean(S.set.ward),clean(S.set.mgr),date,String(S.shiftId||'').replace(/-/g,'').slice(0,8),'1/1',rows.length].join('|')+(rows.length?'\n'+rows.join('\n'):'');
 }
-let partIdx=0;
+/* What was last sent, so the app can say when the log has changed since */
+const logSig=()=>JSON.stringify([S.log.map(e=>[e.id,e.type,e.g,e.i,e.ch,e.start,e.min,e.note||'']),S.cur?[S.cur.id,S.cur.g,S.cur.i,S.cur.start,S.cur.note||'']:null]);
 function renderSend(){
-  const P=sendParts(),n=S.log.length+(S.cur?1:0),btn=$('sendBtn'),info=$('sendInfo');
-  if(partIdx>=P.length)partIdx=0;
-  btn.href=FORM_URL;
-  btn.textContent=(P.length>1?'Copy part '+(partIdx+1)+' of '+P.length:'Copy data')+' & open form';
+  const txt=sendText(),n=S.log.length+(S.cur?1:0),btn=$('sendBtn'),info=$('sendInfo'),over=txt.length>LIMIT;
+  btn.href=FORM_URL;btn.textContent='Copy data & open form';
+  btn.classList.toggle('off',over);btn.setAttribute('aria-disabled',over?'true':'false');
   info.className='note';
-  if(P.length>1)info.textContent=n+' entries \u2013 too long for one answer, so they go in '+P.length+' parts. Submit the Form once per part.';
-  else info.textContent=n+' entries \u00b7 '+P[0].length.toLocaleString('en-GB')+' of 4,000 characters';
+  if(over){info.className='note warn';info.textContent='This shift is too long for the Form ('+txt.length.toLocaleString('en-GB')+' of '+LIMIT.toLocaleString('en-GB')+' characters). Shorten some long notes, or use Download CSV and send the file to the programme team.';return}
+  if(S.sentSig&&S.sentSig!==logSig()){info.className='note warn';info.textContent='You have changed the log since you last sent it. Copy and submit again so the record matches – deleted entries will be marked as deleted.';return}
+  info.textContent=n+' entries · '+txt.length.toLocaleString('en-GB')+' of '+LIMIT.toLocaleString('en-GB')+' characters'+(S.sentSig?' · sent':'');
 }
 $('sendBtn').addEventListener('click',ev=>{
-  const P=sendParts();if(partIdx>=P.length)partIdx=0;
-  const txt=P[partIdx];
-  try{navigator.clipboard.writeText(txt).then(()=>{say(P.length>1?'Part '+(partIdx+1)+' copied \u2013 paste it into the Form and submit.':'Copied \u2013 paste it into the Form and submit.');if(P.length>1){partIdx=(partIdx+1)%P.length;renderSend()}}).catch(()=>say('Copy was blocked. Use Copy full CSV, or try another browser.'))}
+  const txt=sendText();
+  if(txt.length>LIMIT){ev.preventDefault();say('Too long for the Form. Shorten some notes, or use Download CSV.');return}
+  const sig=logSig();
+  try{navigator.clipboard.writeText(txt).then(()=>{S.sentSig=sig;save();renderSend();say('Copied \u2013 paste it into the Form and submit.')}).catch(()=>say('Copy was blocked. Use Copy full CSV, or try another browser.'))}
   catch(e){say('Copy was blocked. Use Copy full CSV, or try another browser.')}
 });
 
@@ -489,7 +490,7 @@ $('dlBtn').onclick=async()=>{
 };
 $('clearBtn').onclick=()=>$('confirm').classList.add('show');
 $('noClear').onclick=()=>$('confirm').classList.remove('show');
-$('yesClear').onclick=()=>{S.log=[];S.cur=null;S.live=null;S.shiftId=uid();partIdx=0;$('confirm').classList.remove('show');render();say('Log cleared. Ready for a new shift.')};
+$('yesClear').onclick=()=>{S.log=[];S.cur=null;S.live=null;S.shiftId=uid();S.sentSig='';$('confirm').classList.remove('show');render();say('Log cleared. Ready for a new shift.')};
 
 /* Settings */
 ['ward','mgr'].forEach(k=>{const el=$(k);el.value=S.set[k]||'';el.addEventListener('input',()=>{S.set[k]=el.value.trim();renderNow();save()})});
